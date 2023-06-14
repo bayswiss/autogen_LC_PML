@@ -119,14 +119,14 @@ def frequency_loop(nf):
 
     # uh_NOPML.interpolate(uh)
     
-    # #Export field for multiple of 100 Hz frequencies
-    # if freq%100 == 0:
-    #     with XDMFFile(msh.comm,"Solution_" + str(freq) + "Hz.xdmf", "w") as xdmf:
-    #          xdmf.write_mesh(msh)
-    #          xdmf.write_function(uh)
-    #     with XDMFFile(msh_INT.comm,"Solution_" + str(freq) + "Hz_NOPML.xdmf", "w") as xdmf:
-    #          xdmf.write_mesh(msh_INT)
-    #          xdmf.write_function(uh_NOPML)
+    #Export field for multiple of 100 Hz frequencies
+    if freq%100 == 0:
+        with XDMFFile(msh.comm,"Solution_" + str(freq) + "Hz.xdmf", "w") as xdmf:
+             xdmf.write_mesh(msh)
+             xdmf.write_function(uh)
+        with XDMFFile(msh_INT.comm,"Solution_" + str(freq) + "Hz_NOPML.xdmf", "w") as xdmf:
+             xdmf.write_mesh(msh_INT)
+             xdmf.write_function(uh_NOPML)
     
     # Microphone pressure at specified point evaluation
     points = np.zeros((3,1))
