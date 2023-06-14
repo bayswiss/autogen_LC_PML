@@ -23,7 +23,13 @@ f_axis = np.arange(50, 3005, 50)
 #Mic position definition
 mic = np.array([0.1, 0.1, 0.1]) 
 
-# approximation space polynomial degree of the solution
+# fluid quantities definition
+c0 = 340
+rho_0 = 1.225
+# omega = Constant(msh, PETSc.ScalarType(1))
+# k0 = Constant(msh, PETSc.ScalarType(1))
+
+# approximation space polynomial degree
 deg = 1
 
 # cad name
@@ -35,7 +41,7 @@ mesh_name_prefix =  CAD_name.rpartition('.')[0]
 # PML 
 PML_FLAG      = 1       # 1 if PML_Functions needs to be used, 0 if not
 Num_layers    = 8       # number of PML elements layers
-d_PML         = 0.08   # total thickness of the PML layer
+d_PML         = 0.08    # total thickness of the PML layer
 mesh_size_max = 0.005   # the mesh will be created entirely in gmsh. this sets its maximum
                         # size
 # PML_surfaces = [4,6]  # vector of tags, identifying the surfaces from which the PML
@@ -44,17 +50,13 @@ mesh_size_max = 0.005   # the mesh will be created entirely in gmsh. this sets i
 
 # PML check
 if PML_FLAG == 1:
-    LAMBDA_PML, detJ, omega, k0, msh, cell_tags, facet_tags = PML_Functions(CAD_name, mesh_size_max, Num_layers, d_PML)
+    LAMBDA_PML, detJ, omega, k0, msh, V, VV, cell_tags, facet_tags = PML_Functions(CAD_name, mesh_size_max, Num_layers, d_PML)
 else:
     msh, cell_tags, facet_tags = gmshio.read_from_msh(mesh_name_prefix + "TOT.msh", MPI.COMM_SELF, 0, gdim=3)
     V = FunctionSpace(msh, ("CG", deg))
     VV = VectorFunctionSpace(msh, ("CG", deg))
     omega = Constant(V, PETSc.ScalarType(1))
     k0 = Constant(V, PETSc.ScalarType(1))
-
-# fluid quantities definition
-c0 = 340
-rho_0 = 1.225
 
 # Source amplitude
 Q = 0.0001
@@ -65,25 +67,23 @@ Sy = 0.02
 Sz = 0.02
 
 # Test and trial function space
-V = FunctionSpace(msh, ("CG", deg))
-VVV = TensorFunctionSpace(msh, ("CG", deg))
-
 u = ufl.TrialFunction(V)
 v = ufl.TestFunction(V)  
 f = Function(V)
 
 #Narrow normalized gauss distribution (quasi-monopole)
-alfa          = c0/max(f_axis)/10.1
+alfa          = c0/max(f_axis)/10 
 delta_tmp     = Function(V)
 delta_tmp.interpolate(lambda x : 1/(np.abs(alfa)*np.sqrt(np.pi))*np.exp(-(((x[0]-Sx)**2+(x[1]-Sy)**2+(x[2]-Sz)**2)/(alfa**2))))
 int_delta_tmp = assemble_scalar(form(delta_tmp*dx)) 
 delta         = delta_tmp/int_delta_tmp
 int_delta     = assemble_scalar(form(delta*dx))
 
-dx = Measure("dx", domain=msh, subdomain_data=cell_tags, metadata={"quadrature_degree": 4})
 
 # weak form definition: 
 f  = 1j*rho_0*omega*Q*delta
+
+dx = Measure("dx", domain=msh, subdomain_data=cell_tags, metadata={"quadrature_degree": 6})
 
 a  = inner(grad(u), grad(v)) * dx(1) - k0**2 * inner(u, v) * dx(1)  \
         + inner(LAMBDA_PML*grad(u), grad(v)) * dx(2) - detJ * k0**2 * inner(u, v) * dx(2)
@@ -117,16 +117,16 @@ def frequency_loop(nf):
     k0.value    = 2*np.pi*f_axis[nf]/c0
     problem.solve()
 
-    uh_NOPML.interpolate(uh)
+    # uh_NOPML.interpolate(uh)
     
-    #Export field for multiple of 100 Hz frequencies
-    if freq%100 == 0:
-        with XDMFFile(msh.comm,CAD_name + "Solution_" + str(freq) + "Hz.xdmf", "w") as xdmf:
-             xdmf.write_mesh(msh)
-             xdmf.write_function(uh)
-        with XDMFFile(msh_INT.comm,CAD_name + "Solution_" + str(freq) + "Hz_NOPML.xdmf", "w") as xdmf:
-             xdmf.write_mesh(msh_INT)
-             xdmf.write_function(uh_NOPML)
+    # #Export field for multiple of 100 Hz frequencies
+    # if freq%100 == 0:
+    #     with XDMFFile(msh.comm,"Solution_" + str(freq) + "Hz.xdmf", "w") as xdmf:
+    #          xdmf.write_mesh(msh)
+    #          xdmf.write_function(uh)
+    #     with XDMFFile(msh_INT.comm,"Solution_" + str(freq) + "Hz_NOPML.xdmf", "w") as xdmf:
+    #          xdmf.write_mesh(msh_INT)
+    #          xdmf.write_function(uh_NOPML)
     
     # Microphone pressure at specified point evaluation
     points = np.zeros((3,1))
@@ -153,6 +153,7 @@ def frequency_loop(nf):
 # MultiProcessing: every frequency the entire domain gets assigned to on one process
 from multiprocessing import Pool
 nf = range(0,len(f_axis))
+
 if __name__ == '__main__':
     print("Computing...")  
     pool = Pool(n_processes)                        # Create a multiprocessing Pool

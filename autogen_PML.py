@@ -160,9 +160,10 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         from ufl import as_matrix
         from mpi4py import MPI
         from petsc4py import PETSc
-        
+
+
         msh, cell_tags, facet_tags  = gmshio.read_from_msh(mesh_name_prefix + "TOT.msh", MPI.COMM_SELF, 0, gdim=3)
-        V                           = FunctionSpace(msh, ("CG",1))
+        V                           = FunctionSpace(msh, ("CG", 1))
         VV                          = VectorFunctionSpace(msh, ("CG", 1))
          
         indexes_dolfinx             = msh.geometry.input_global_indices
@@ -213,11 +214,12 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         # assign the gmsh quantities to the dolfinx functions:
         k2                    = Function(V)
         k2.x.array[:]         = k2_PML[indexes_dolfinx]  
-
+        with XDMFFile(msh.comm,"k2.xdmf", "w") as xdmf:
+                xdmf.write_mesh(msh)
+                xdmf.write_function(k2)
 
         k3                    = Function(V)
         k3.x.array[:]         = k3_PML[indexes_dolfinx]  
-
 
         phi_domain            = Function(V)
         phi_domain.x.array[:] = d[indexes_dolfinx]/d_pml
@@ -273,8 +275,7 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
 
         # PML tensor 
         LAMBDA_PML = s2*s3/s1 * nnT + s1*s3/s2 * t2t2T + s1*s2/s3 * t3t3T
-
-
+   
         # Outputs:
 
         # LAMBDA_PML = PML tensor, to be used in the weak form 
@@ -282,7 +283,9 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         # omega      = angular frequency
         # k0         = acoustic wavenumber
         # msh        = dolfinx msh 
+        # V          = scalar functionspace
+        # VV         = vector functionspace
         # cell_tags  = dolfinx cell tags
         # facet_tags = dolfinx facet tags
 
-        return LAMBDA_PML, detJ, omega, k0, msh, cell_tags, facet_tags
+        return LAMBDA_PML, detJ, omega, k0, msh, V, VV, cell_tags, facet_tags
