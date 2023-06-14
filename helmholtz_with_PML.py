@@ -117,7 +117,7 @@ def frequency_loop(nf):
     k0.value    = 2*np.pi*f_axis[nf]/c0
     problem.solve()
 
-    # uh_NOPML.interpolate(uh)
+    uh_NOPML.interpolate(uh)
     
     #Export field for multiple of 100 Hz frequencies
     if freq%100 == 0:
