@@ -157,7 +157,7 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         import numpy as np
         from dolfinx.fem import Function, FunctionSpace, Constant, VectorFunctionSpace, TensorFunctionSpace
         from dolfinx.io import XDMFFile, gmshio
-        from ufl import as_matrix
+        from ufl import as_matrix, ln
         from mpi4py import MPI
         from petsc4py import PETSc
 
@@ -214,9 +214,6 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         # assign the gmsh quantities to the dolfinx functions:
         k2                    = Function(V)
         k2.x.array[:]         = k2_PML[indexes_dolfinx]  
-        with XDMFFile(msh.comm,"k2.xdmf", "w") as xdmf:
-                xdmf.write_mesh(msh)
-                xdmf.write_function(k2)
 
         k3                    = Function(V)
         k3.x.array[:]         = k3_PML[indexes_dolfinx]  
@@ -246,15 +243,23 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         # Building the model. Definition of all the functions needed to compute
         # the stretching functions 
 
-        C = 15*k0 #constant of the sigma function
-
-        # polynomial absorbtion function f(csi) (other functions can be chosen)
-        N_stretching = 3 # degree of the function
-        sigma        = C*phi_domain**N_stretching
-        f_csi        = d_pml*C/(N_stretching+1)*phi_domain**(N_stretching+1)
-
         # normal parametric coordinate
         csi   = phi_domain*d_pml 
+
+        #### Absorbing function ####
+
+        # ## Polynomial ## 
+        # C = 10*k0 #constant of the sigma function
+
+        # # polynomial absorbtion function f(csi) (other functions can be chosen)
+        # N_stretching = 2 # degree of the function
+        # sigma        = C*phi_domain**N_stretching
+        # f_csi        = d_pml*C/(N_stretching+1)*phi_domain**(N_stretching+1)
+
+        ## Hyperbolic ##
+        sigma        = 1/(d_pml- csi)
+        f_csi        = - ln(1 - csi/d_pml)
+
 
         # scale factors
         h2    = 1 + k2*csi      
@@ -288,4 +293,4 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         # cell_tags  = dolfinx cell tags
         # facet_tags = dolfinx facet tags
 
-        return LAMBDA_PML, detJ, omega, k0, msh, V, VV, cell_tags, facet_tags
+        return LAMBDA_PML, detJ, omega, k0, msh, cell_tags, facet_tags

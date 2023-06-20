@@ -15,13 +15,13 @@ from ufl.algorithms.compute_form_data import estimate_total_polynomial_degree
 # The code will be executed in frequency-multiprocessing mode:
 # the entire domain will be assigned to one process for every frequency.
 # Set the number of processes to use in parallel:
-n_processes = 4
+n_processes = 1
 
 #frequency range definition
-f_axis = np.arange(50, 3005, 50)
+f_axis = np.arange(100, 3005, 100)
 
 #Mic position definition
-mic = np.array([0.1, 0.1, 0.1]) 
+mic = np.array([0.05, 0.03, 0.03]) 
 
 # fluid quantities definition
 c0 = 340
@@ -30,7 +30,7 @@ rho_0 = 1.225
 # k0 = Constant(msh, PETSc.ScalarType(1))
 
 # approximation space polynomial degree
-deg = 1
+deg = 3
 
 # cad name
 CAD_name = 'air.step'
@@ -39,40 +39,34 @@ CAD_name = 'air.step'
 mesh_name_prefix =  CAD_name.rpartition('.')[0] 
 
 # PML 
-PML_FLAG      = 1       # 1 if PML_Functions needs to be used, 0 if not
 Num_layers    = 8       # number of PML elements layers
 d_PML         = 0.08    # total thickness of the PML layer
-mesh_size_max = 0.005   # the mesh will be created entirely in gmsh. this sets its maximum
+mesh_size_max = 0.008   # the mesh will be created entirely in gmsh. this sets its maximum
                         # size
 # PML_surfaces = [4,6]  # vector of tags, identifying the surfaces from which the PML
                         # layer gets automatically extruded. Comment this line to extrude
                         # all the 2D surfaces of the system
 
-# PML check
-if PML_FLAG == 1:
-    LAMBDA_PML, detJ, omega, k0, msh, V, VV, cell_tags, facet_tags = PML_Functions(CAD_name, mesh_size_max, Num_layers, d_PML)
-else:
-    msh, cell_tags, facet_tags = gmshio.read_from_msh(mesh_name_prefix + "TOT.msh", MPI.COMM_SELF, 0, gdim=3)
-    V = FunctionSpace(msh, ("CG", deg))
-    VV = VectorFunctionSpace(msh, ("CG", deg))
-    omega = Constant(V, PETSc.ScalarType(1))
-    k0 = Constant(V, PETSc.ScalarType(1))
+
+# PML Functions needed for the variational formulation
+LAMBDA_PML, detJ, omega, k0, msh, cell_tags, facet_tags = PML_Functions(CAD_name, mesh_size_max, Num_layers, d_PML)
 
 # Source amplitude
 Q = 0.0001
 
 #Source definition position = (Sx,Sy)
 Sx = 0.05
-Sy = 0.02
-Sz = 0.02
+Sy = 0.1
+Sz = 0.1
 
 # Test and trial function space
+V = FunctionSpace(msh, ("CG", deg))
 u = ufl.TrialFunction(V)
 v = ufl.TestFunction(V)  
 f = Function(V)
 
 #Narrow normalized gauss distribution (quasi-monopole)
-alfa          = c0/max(f_axis)/10 
+alfa          = mesh_size_max/6
 delta_tmp     = Function(V)
 delta_tmp.interpolate(lambda x : 1/(np.abs(alfa)*np.sqrt(np.pi))*np.exp(-(((x[0]-Sx)**2+(x[1]-Sy)**2+(x[2]-Sz)**2)/(alfa**2))))
 int_delta_tmp = assemble_scalar(form(delta_tmp*dx)) 
@@ -83,7 +77,7 @@ int_delta     = assemble_scalar(form(delta*dx))
 # weak form definition: 
 f  = 1j*rho_0*omega*Q*delta
 
-dx = Measure("dx", domain=msh, subdomain_data=cell_tags, metadata={"quadrature_degree": 6})
+dx = Measure("dx", domain=msh, subdomain_data=cell_tags, metadata={"quadrature_degree": 3*deg})
 
 a  = inner(grad(u), grad(v)) * dx(1) - k0**2 * inner(u, v) * dx(1)  \
         + inner(LAMBDA_PML*grad(u), grad(v)) * dx(2) - detJ * k0**2 * inner(u, v) * dx(2)
@@ -119,14 +113,14 @@ def frequency_loop(nf):
 
     uh_NOPML.interpolate(uh)
     
-    #Export field for multiple of 100 Hz frequencies
-    if freq%100 == 0:
-        with XDMFFile(msh.comm,"Solution_" + str(freq) + "Hz.xdmf", "w") as xdmf:
-             xdmf.write_mesh(msh)
-             xdmf.write_function(uh)
-        with XDMFFile(msh_INT.comm,"Solution_" + str(freq) + "Hz_NOPML.xdmf", "w") as xdmf:
-             xdmf.write_mesh(msh_INT)
-             xdmf.write_function(uh_NOPML)
+    # Export field for multiple of 100 Hz frequencies
+    # if freq%100 == 0:
+    #     with XDMFFile(msh.comm,"Solution_" + str(freq) + "Hz.xdmf", "w") as xdmf:
+    #          xdmf.write_mesh(msh)
+    #          xdmf.write_function(uh)
+    #     with XDMFFile(msh_INT.comm,"Solution_" + str(freq) + "Hz_NOPML.xdmf", "w") as xdmf:
+    #          xdmf.write_mesh(msh_INT)
+    #          xdmf.write_function(uh_NOPML)
     
     # Microphone pressure at specified point evaluation
     points = np.zeros((3,1))
