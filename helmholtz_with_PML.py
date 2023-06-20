@@ -1,3 +1,8 @@
+# HELMHOLTZ SOLVER WITH AUTO-GENERATING PML 
+#
+# Copyright (C) 2022-2023 Antonio Baiano Svizzero, Undabit
+# www.undabit.com
+
 import numpy as np
 import ufl
 from dolfinx import geometry
