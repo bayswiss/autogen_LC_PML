@@ -5,4 +5,3 @@ The file helmholtz_with_pml.py contains all the setting for the simulation of he
 
 All the algorithms and the implementation of the Locally-Conformal PML are in autogen_PML.py
 
-[FIXED] support for higher order was missing. 
