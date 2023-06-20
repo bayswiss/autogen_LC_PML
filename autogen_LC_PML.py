@@ -10,15 +10,17 @@
 
 
 # The Lambda_PML formulas are the implementation of the following papers:
-# Y. Mi, X. Yu          - Isogeometric locally-conformal perfectly matched layer 
-#                         for time-harmonic acoustics, 2021 
-# H. Beriot, A. Modave  - An automatic perfectly matched layer for acoustic finite
-#                         element simulations in convex domains of general shape, 2020
-# O. Ozgun, M. Kuzoglus - Locally-Conformal Perfeclty Matched Layer implementation 
-#                         for finite element mesh truncation, 2006
 
-
-
+# Mi, Y., & Yu, X. (2021). Isogeometric locally-conformal perfectly matched layer for time-harmonic acoustics. 
+#                          Computer Methods in Applied Mechanics and Engineering, 384, 113925.
+#
+# Bériot, H., & Modave, A. (2021). An automatic perfectly matched layer for acoustic finite element
+#                                  simulations in convex domains of general shape. International Journal 
+#                                  for Numerical Methods in Engineering, 122(5), 1239-1261.
+#
+# Ozgun, O., & Kuzuoglu, M. (2006). Locally‐conformal perfectly matched layer implementation for finite
+#                                   element mesh truncation. Microwave and Optical Technology Letters, 48(9),
+#                                   1836-1839.
 
 
 # description of the inputs: 
