@@ -115,10 +115,9 @@ def frequency_loop(nf):
     omega.value = f_axis[nf]*2*np.pi
     k0.value    = 2*np.pi*f_axis[nf]/c0
     problem.solve()
-
-    uh_NOPML.interpolate(uh)
-    
+  
     # Export field for multiple of 100 Hz frequencies
+    # uh_NOPML.interpolate(uh)
     # if freq%100 == 0:
     #     with XDMFFile(msh.comm,"Solution_" + str(freq) + "Hz.xdmf", "w") as xdmf:
     #          xdmf.write_mesh(msh)
