@@ -20,7 +20,7 @@ from ufl.algorithms.compute_form_data import estimate_total_polynomial_degree
 # The code will be executed in frequency-multiprocessing mode:
 # the entire domain will be assigned to one process for every frequency.
 # Set the number of processes to use in parallel:
-n_processes = 1
+n_processes = 4
 
 #frequency range definition
 f_axis = np.arange(100, 3005, 100)
@@ -35,7 +35,7 @@ rho_0 = 1.225
 # k0 = Constant(msh, PETSc.ScalarType(1))
 
 # approximation space polynomial degree
-deg = 3
+deg = 2
 
 # cad name
 CAD_name = 'air.step'
