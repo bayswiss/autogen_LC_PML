@@ -52,13 +52,9 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         path             = os.path.dirname(os.path.abspath(__file__))
         gmsh.merge(os.path.join(path, CAD_name))
 
-        # set volume physical group, create volume mesh and export it in .msh
+        # set internal volume physical group
         gmsh.model.addPhysicalGroup(3, [1], 1, "air_int")
         gmsh.model.geo.synchronize()
-        gmsh.model.mesh.generate(3)
-        gmsh.write(mesh_name_prefix + "INT.msh")
-        gmsh.model.mesh.clear()
-        gmsh.model.occ.synchronize()
 
         # set PML interface tags if = -1 every 2D surface gets extruded
         if PML_surfaces != -1:
