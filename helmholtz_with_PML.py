@@ -94,8 +94,9 @@ uh      = Function(V)
 uh.name = "u"
 problem = LinearProblem(a, L, u=uh, petsc_options={"ksp_type": "preonly", "pc_type": "lu","pc_factor_mat_solver_type": "mumps"})
 
-# creation of the mesh without the PML on which the soultion is projected
-msh_INT, cell_tags_INT, facet_tags_INT = gmshio.read_from_msh(mesh_name_prefix + "INT.msh", MPI.COMM_SELF, 0, gdim=3)
+# creation of the submesh without the PML on which the soultion is projected
+i_INT = cell_tags.indices[(cell_tags.values==1)] # 
+msh_INT, entity_map, vertex_map, geom_map = create_submesh(msh, msh.topology.dim, i_INT)
 V_INT = FunctionSpace(msh_INT, ("CG", deg))
 uh_NOPML = Function(V_INT)
 
