@@ -1,5 +1,5 @@
 # autogen_LC_PML
-Auto-generating Locally-Conformal Perfectly Matched Layer
+Auto-generating Locally-Conformal Perfectly Matched Layer for FEniCS. Tested with dolfinx 0.6.0
 
 The file helmholtz_with_pml.py contains all the setting for the simulation of helmholtz equation with a monopole source in the specified location. Run it to start the computation. It will import and use the function PML_Functions() from autogen_PML.py
 
