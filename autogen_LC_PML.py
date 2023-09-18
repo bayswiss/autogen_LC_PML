@@ -166,8 +166,8 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
          
         indexes_dolfinx             = msh.geometry.input_global_indices
  
-        omega                       = Constant(V, PETSc.ScalarType(1))
-        k0                          = Constant(V, PETSc.ScalarType(1))
+        omega                       = Constant(msh, PETSc.ScalarType(1))
+        k0                          = Constant(msh, PETSc.ScalarType(1))
         
         # initialize variables
         k2_PML                      = np.zeros([len(tags3_nodup)])

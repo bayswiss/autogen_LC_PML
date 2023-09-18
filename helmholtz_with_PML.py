@@ -14,7 +14,7 @@ from ufl import dx, grad, inner, outer, dot, ds, Measure, as_matrix, as_tensor, 
 from mpi4py import MPI
 from petsc4py import PETSc
 import time
-from autogen_PML import PML_Functions
+from autogen_LC_PML import PML_Functions
 from ufl.algorithms.compute_form_data import estimate_total_polynomial_degree
 
 # The code will be executed in frequency-multiprocessing mode:
@@ -96,6 +96,7 @@ problem = LinearProblem(a, L, u=uh, petsc_options={"ksp_type": "preonly", "pc_ty
 
 # creation of the submesh without the PML on which the soultion is projected
 i_INT = cell_tags.indices[(cell_tags.values==1)] # 
+from dolfinx.mesh import create_submesh
 msh_INT, entity_map, vertex_map, geom_map = create_submesh(msh, msh.topology.dim, i_INT)
 V_INT = FunctionSpace(msh_INT, ("CG", deg))
 uh_NOPML = Function(V_INT)
