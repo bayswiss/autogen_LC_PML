@@ -1,41 +1,32 @@
-# AUTO-GENERATING LOCALLY-CONFORMAL PERFECTLY MATCHED LAYER 
-#
-# Copyright (C) 2022-2023 Antonio Baiano Svizzero, Undabit
-# www.undabit.com
+'''
+AUTO-GENERATING LOCALLY-CONFORMAL PERFECTLY MATCHED LAYER 
 
-# This function takes CAD file and PML quantities as inputs, giving as output all the necessary 
-# functions to build the weak form of the Helmholtz equations in complex coordinates such as
-# Lambda tensor, det(J_PML), etc.
-
-
-
-# The Lambda_PML formulas are the implementation of the following papers:
-
-# Mi, Y., & Yu, X. (2021). Isogeometric locally-conformal perfectly matched layer for time-harmonic acoustics. 
-#                          Computer Methods in Applied Mechanics and Engineering, 384, 113925.
-#
-# Bériot, H., & Modave, A. (2021). An automatic perfectly matched layer for acoustic finite element
-#                                  simulations in convex domains of general shape. International Journal 
-#                                  for Numerical Methods in Engineering, 122(5), 1239-1261.
-#
-# Ozgun, O., & Kuzuoglu, M. (2006). Locally‐conformal perfectly matched layer implementation for finite
-#                                   element mesh truncation. Microwave and Optical Technology Letters, 48(9),
-#                                   1836-1839.
-
-
-# description of the inputs: 
-
-# def PML_Functions( CAD_name        = name of the CAD file from which the pml has to be extruded. Tested with step files,
-#                    mesh_size_max   = maximum mesh size used by gmsh,
-#                    Num_layers      = number of PML element sublayers built in the extrusion,
-#                    d_pml           = total thickness of the PML layer, 
-#                    PML_surfaces    = vector containing the id of the surfaces on which the extrusion is performed. 
-#                                      if = -1 gmsh will perform the extrusion on all the 2D surfaces 
-# ):
+ Copyright (C) 2022-2023 Antonio Baiano Svizzero, Undabit
+ www.undabit.com
+ This function takes CAD file and PML quantities as inputs, giving as output all the necessary 
+ functions to build the weak form of the Helmholtz equations in complex coordinates such as
+ Lambda tensor, det(J_PML), etc.
+ The Lambda_PML formulas are the implementation of the following papers:
+ Y. Mi, X. Yu          - Isogeometric locally-conformal perfectly matched layer 
+                         for time-harmonic acoustics, 2021 
+ H. Beriot, A. Modave  - An automatic perfectly matched layer for acoustic finite
+                         element simulations in convex domains of general shape, 2020
+ O. Ozgun, M. Kuzoglus - Locally-Conformal Perfeclty Matched Layer implementation 
+                         for finite element mesh truncation, 2006
+ description of the inputs: 
+ def PML_Functions( CAD_name        = name of the CAD file from which the pml has to be extruded. Tested with step files,
+                    mesh_size_max   = maximum mesh size used by gmsh,
+                    Num_layers      = number of PML element sublayers built in the extrusion,
+                    d_pml           = total thickness of the PML layer, 
+                    PML_surfaces    = vector containing the id of the surfaces on which the extrusion is performed. 
+                                      if = -1 gmsh will perform the extrusion on all the 2D surfaces 
+                    elem_degree      = polynomial order of the elements (for now only 1 and 2 are supported)
+ ):
+'''
 
 
 
-def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
+def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, elem_degree=1):
 
         import gmsh
         import sys
@@ -78,6 +69,8 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         gmsh.model.addPhysicalGroup(2, bottom_surf, 3, "pml_int")
         gmsh.model.geo.synchronize()
         gmsh.model.mesh.generate(3)
+        if elem_degree==2: 
+                gmsh.model.mesh.setOrder(elem_degree)
         gmsh.write(mesh_name_prefix + "TOT.msh")
        
 
@@ -161,8 +154,8 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
 
 
         msh, cell_tags, facet_tags  = gmshio.read_from_msh(mesh_name_prefix + "TOT.msh", MPI.COMM_SELF, 0, gdim=3)
-        V                           = FunctionSpace(msh, ("CG", 1))
-        VV                          = VectorFunctionSpace(msh, ("CG", 1))
+        V                           = FunctionSpace(msh, ("CG", elem_degree))
+        VV                          = VectorFunctionSpace(msh, ("CG", elem_degree))
          
         indexes_dolfinx             = msh.geometry.input_global_indices
  
@@ -187,7 +180,7 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
         # PML volume. Every node of the PML volume, gets assigned the quantities in
         # the nearest PML interface node.
         for n in range(len(tags3_nodup)):
-                if n in tags3_PML:
+                if n in tags3_PML-1: #fixed, gmsh starts counting on 1 
                         d_square    = np.sqrt((xx[n] - XX)**2 + (yy[n] - YY)**2 + (zz[n] - ZZ)**2)
                         min_d       = np.min(d_square)
                         min_idx     = np.argmin(d_square)
@@ -278,17 +271,16 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1):
 
         # PML tensor 
         LAMBDA_PML = s2*s3/s1 * nnT + s1*s3/s2 * t2t2T + s1*s2/s3 * t3t3T
-   
-        # Outputs:
-
-        # LAMBDA_PML = PML tensor, to be used in the weak form 
-        # detJ       = determinant of J_PML, to be used in the weak form
-        # omega      = angular frequency
-        # k0         = acoustic wavenumber
-        # msh        = dolfinx msh 
-        # V          = scalar functionspace
-        # VV         = vector functionspace
-        # cell_tags  = dolfinx cell tags
-        # facet_tags = dolfinx facet tags
+        
+        '''Outputs:
+        LAMBDA_PML = PML tensor, to be used in the weak form 
+        detJ       = determinant of J_PML, to be used in the weak form
+        omega      = angular frequency
+        k0         = acoustic wavenumber
+        msh        = dolfinx msh 
+        V          = scalar functionspace
+        VV         = vector functionspace
+        cell_tags  = dolfinx cell tags
+        facet_tags = dolfinx facet tags'''
 
         return LAMBDA_PML, detJ, omega, k0, msh, cell_tags, facet_tags
