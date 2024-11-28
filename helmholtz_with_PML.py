@@ -1,29 +1,24 @@
-# HELMHOLTZ SOLVER WITH AUTO-GENERATING PML 
-#
-# Copyright (C) 2022-2023 Antonio Baiano Svizzero, Undabit
-# www.undabit.com
-
 import numpy as np
 import ufl
 from dolfinx import geometry
-from dolfinx.fem import Function, FunctionSpace, assemble_scalar, dirichletbc, locate_dofs_topological, form, Constant, VectorFunctionSpace, TensorFunctionSpace ,Expression
+from dolfinx.fem import Function, functionspace, assemble_scalar, form
 from dolfinx.fem.petsc import LinearProblem
-from dolfinx.io import XDMFFile, gmshio
-from dolfinx.mesh import create_unit_square, meshtags
-from ufl import dx, grad, inner, outer, dot, ds, Measure, as_matrix, as_tensor, inv, det, log
+from dolfinx.io import VTXWriter
+from dolfinx.mesh import create_submesh
+from ufl import dx, grad, inner, Measure
 from mpi4py import MPI
 from petsc4py import PETSc
 import time
 from autogen_PML import PML_Functions
-from ufl.algorithms.compute_form_data import estimate_total_polynomial_degree
+
 
 # The code will be executed in frequency-multiprocessing mode:
 # the entire domain will be assigned to one process for every frequency.
 # Set the number of processes to use in parallel:
-n_processes = 4
+n_processes = 2
 
 #frequency range definition
-f_axis = np.arange(100, 3005, 100)
+f_axis = np.arange(100, 3000, 100)
 
 #Mic position definition
 mic = np.array([0.05, 0.03, 0.03]) 
@@ -44,9 +39,9 @@ CAD_name = 'air.step'
 mesh_name_prefix =  CAD_name.rpartition('.')[0] 
 
 # PML 
-Num_layers    = 8       # number of PML elements layers
-d_PML         = 0.08    # total thickness of the PML layer
-mesh_size_max = 0.008   # the mesh will be created entirely in gmsh. this sets its maximum
+Num_layers    = 4       # number of PML elements layers
+d_PML         = 0.02   # total thickness of the PML layer
+mesh_size_max = 0.007   # the mesh will be created entirely in gmsh. this sets its maximum
                         # size
 # PML_surfaces = [4,6]  # vector of tags, identifying the surfaces from which the PML
                         # layer gets automatically extruded. Comment this line to extrude
@@ -54,7 +49,7 @@ mesh_size_max = 0.008   # the mesh will be created entirely in gmsh. this sets i
 
 
 # PML Functions needed for the variational formulation
-LAMBDA_PML, detJ, omega, k0, msh, cell_tags, facet_tags = PML_Functions(CAD_name, mesh_size_max, Num_layers, d_PML)
+LAMBDA_PML, detJ, omega, k0, msh, cell_tags, facet_tags = PML_Functions(CAD_name, mesh_size_max, Num_layers, d_PML, elem_degree=deg)
 
 # Source amplitude
 Q = 0.0001
@@ -65,13 +60,13 @@ Sy = 0.1
 Sz = 0.1
 
 # Test and trial function space
-V = FunctionSpace(msh, ("CG", deg))
+V = functionspace(msh, ("CG", deg))
 u = ufl.TrialFunction(V)
 v = ufl.TestFunction(V)  
 f = Function(V)
 
 #Narrow normalized gauss distribution (quasi-monopole)
-alfa          = mesh_size_max/6
+alfa          = mesh_size_max*2
 delta_tmp     = Function(V)
 delta_tmp.interpolate(lambda x : 1/(np.abs(alfa)*np.sqrt(np.pi))*np.exp(-(((x[0]-Sx)**2+(x[1]-Sy)**2+(x[2]-Sz)**2)/(alfa**2))))
 int_delta_tmp = assemble_scalar(form(delta_tmp*dx)) 
@@ -97,7 +92,7 @@ problem = LinearProblem(a, L, u=uh, petsc_options={"ksp_type": "preonly", "pc_ty
 # creation of the submesh without the PML on which the soultion is projected
 i_INT = cell_tags.indices[(cell_tags.values==1)] # 
 msh_INT, entity_map, vertex_map, geom_map = create_submesh(msh, msh.topology.dim, i_INT)
-V_INT = FunctionSpace(msh_INT, ("CG", deg))
+V_INT = functionspace(msh_INT, ("CG", deg))
 uh_NOPML = Function(V_INT)
 
 # spectrum initialization
@@ -116,27 +111,26 @@ def frequency_loop(nf):
     omega.value = f_axis[nf]*2*np.pi
     k0.value    = 2*np.pi*f_axis[nf]/c0
     problem.solve()
-  
+
+    uh_NOPML.interpolate(uh)
+
     # Export field for multiple of 100 Hz frequencies
-    # uh_NOPML.interpolate(uh)
-    # if freq%100 == 0:
-    #     with XDMFFile(msh.comm,"Solution_" + str(freq) + "Hz.xdmf", "w") as xdmf:
-    #          xdmf.write_mesh(msh)
-    #          xdmf.write_function(uh)
-    #     with XDMFFile(msh_INT.comm,"Solution_" + str(freq) + "Hz_NOPML.xdmf", "w") as xdmf:
-    #          xdmf.write_mesh(msh_INT)
-    #          xdmf.write_function(uh_NOPML)
+    if freq%100 == 0:
+        with VTXWriter(msh.comm, "fields/pressure_" + str(np.round(f_axis[nf])) + ".bp", [uh]) as vtx:
+            vtx.write(0.0)
+        with VTXWriter(msh.comm, "fields/pressure_" + str(np.round(f_axis[nf])) + "_NOPML.bp", [uh_NOPML]) as vtx:
+            vtx.write(0.0)
     
     # Microphone pressure at specified point evaluation
     points = np.zeros((3,1))
     points[0][0] = mic[0]
     points[1][0] = mic[1]
     points[2][0] = mic[2]
-    bb_tree = geometry.BoundingBoxTree(msh, msh.topology.dim)
+    bb_tree_ = geometry.bb_tree(msh, msh.topology.dim) #bb_tree è una funzione, non usarla come nome.
     cells = []
     points_on_proc = []
     # Find cells whose bounding-box collide with the the points
-    cell_candidates = geometry.compute_collisions(bb_tree, points.T)
+    cell_candidates = geometry.compute_collisions_points(bb_tree_, points.T)
     # Choose one of the cells that contains the point
     colliding_cells = geometry.compute_colliding_cells(msh, cell_candidates, points.T)
     for i, point in enumerate(points.T):
