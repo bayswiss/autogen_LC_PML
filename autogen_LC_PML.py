@@ -95,9 +95,7 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, e
         # and export it in .msh file
         gmsh.model.addPhysicalGroup(3,pml_volumes, 2, "PML")
         gmsh.model.addPhysicalGroup(2, bottom_surf, 3, "pml_int")
-        gmsh.model.addPhysicalGroup(2, [2], 4, "velocity_BC")
        
-
         gmsh.model.geo.synchronize()
         gmsh.model.mesh.generate(3)
         if elem_degree==2: 
