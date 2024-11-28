@@ -26,8 +26,36 @@ AUTO-GENERATING LOCALLY-CONFORMAL PERFECTLY MATCHED LAYER
 
 
 
-def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, elem_degree=1):
+'''
+AUTO-GENERATING LOCALLY-CONFORMAL PERFECTLY MATCHED LAYER 
 
+ Copyright (C) 2022-2023 Antonio Baiano Svizzero, Undabit
+ www.undabit.com
+
+ This function takes CAD file and PML quantities as inputs, giving as output all the necessary 
+ functions to build the weak form of the Helmholtz equations in complex coordinates such as
+ Lambda tensor, det(J_PML), etc.
+ The Lambda_PML formulas are the implementation of the following papers:
+ Y. Mi, X. Yu          - Isogeometric locally-conformal perfectly matched layer 
+                         for time-harmonic acoustics, 2021 
+ H. Beriot, A. Modave  - An automatic perfectly matched layer for acoustic finite
+                         element simulations in convex domains of general shape, 2020
+ O. Ozgun, M. Kuzoglus - Locally-Conformal Perfeclty Matched Layer implementation 
+                         for finite element mesh truncation, 2006
+ description of the inputs: 
+ def PML_Functions( CAD_name        = name of the CAD file from which the pml has to be extruded. Tested with step files,
+                    mesh_size_max   = maximum mesh size used by gmsh,
+                    Num_layers      = number of PML element sublayers built in the extrusion,
+                    d_pml           = total thickness of the PML layer, 
+                    PML_surfaces    = vector containing the id of the surfaces on which the extrusion is performed. 
+                                      if = -1 gmsh will perform the extrusion on all the 2D surfaces 
+                    elem_degree     = polynomial order of the elements (for now only 1 and 2 are supported)
+ ):
+'''
+
+
+def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, elem_degree=1):
+    
         import gmsh
         import sys
         import os
@@ -56,7 +84,7 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, e
 
         # extrude PML layer of thickness d_PML and Num_layers layers
         gmsh.option.setNumber('Geometry.ExtrudeReturnLateralEntities', 0)
-        e = gmsh.model.geo.extrudeBoundaryLayer(PML_interface_entities, [Num_layers], [d_pml], False)
+        e = gmsh.model.geo.extrudeBoundaryLayer(PML_interface_entities, [Num_layers], [d_pml], False) # False doesn't recombine tetra into ehxa
 
         # retrieve tags from PML interface (bottom surf), PML subvolumes
         bottom_surf  = [s[1] for s in PML_interface_entities]
@@ -67,6 +95,9 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, e
         # and export it in .msh file
         gmsh.model.addPhysicalGroup(3,pml_volumes, 2, "PML")
         gmsh.model.addPhysicalGroup(2, bottom_surf, 3, "pml_int")
+        gmsh.model.addPhysicalGroup(2, [2], 4, "velocity_BC")
+       
+
         gmsh.model.geo.synchronize()
         gmsh.model.mesh.generate(3)
         if elem_degree==2: 
@@ -146,7 +177,7 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, e
         # start working in FEniCSx: import mesh, define FunctionSpaces, 
         #                           retrieve dolfinx reordered indexes.
         import numpy as np
-        from dolfinx.fem import Function, FunctionSpace, Constant, VectorFunctionSpace, TensorFunctionSpace
+        from dolfinx.fem import Function, functionspace, Constant
         from dolfinx.io import XDMFFile, gmshio
         from ufl import as_matrix, ln
         from mpi4py import MPI
@@ -154,13 +185,13 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, e
 
 
         msh, cell_tags, facet_tags  = gmshio.read_from_msh(mesh_name_prefix + "TOT.msh", MPI.COMM_SELF, 0, gdim=3)
-        V                           = FunctionSpace(msh, ("CG", elem_degree))
-        VV                          = VectorFunctionSpace(msh, ("CG", elem_degree))
-         
+        V                           = functionspace(msh, ("CG", elem_degree))
+        VV                          = functionspace(msh, ("CG", elem_degree, (3, )))
+
         indexes_dolfinx             = msh.geometry.input_global_indices
  
-        omega                       = Constant(V, PETSc.ScalarType(1))
-        k0                          = Constant(V, PETSc.ScalarType(1))
+        omega                       = Constant(msh, PETSc.ScalarType(1))
+        k0                          = Constant(msh, PETSc.ScalarType(1))
         
         # initialize variables
         k2_PML                      = np.zeros([len(tags3_nodup)])
@@ -181,7 +212,7 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, e
         # the nearest PML interface node.
         for n in range(len(tags3_nodup)):
                 if n in tags3_PML-1: #fixed, gmsh starts counting on 1 
-                        d_square    = np.sqrt((xx[n] - XX)**2 + (yy[n] - YY)**2 + (zz[n] - ZZ)**2)
+                        d_square    = np.sqrt((xx[n] - XX)**2 + (yy[n] - YY)**2 + (zz[n] - ZZ)**2) #removed sqrt for speed 
                         min_d       = np.min(d_square)
                         min_idx     = np.argmin(d_square)
 
@@ -271,7 +302,7 @@ def PML_Functions(CAD_name, mesh_size_max, Num_layers, d_pml, PML_surfaces=-1, e
 
         # PML tensor 
         LAMBDA_PML = s2*s3/s1 * nnT + s1*s3/s2 * t2t2T + s1*s2/s3 * t3t3T
-        
+   
         '''Outputs:
         LAMBDA_PML = PML tensor, to be used in the weak form 
         detJ       = determinant of J_PML, to be used in the weak form
