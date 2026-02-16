@@ -1,0 +1,7 @@
+*.bp
+*.npy
+*.zip
+*.msh
+
+fields/
+__pycache__/

@@ -1,7 +1,8 @@
 import numpy as np
 import ufl
 from dolfinx import geometry
-from dolfinx.fem import Function, functionspace, assemble_scalar, form
+from dolfinx.fem import Function, functionspace, assemble_scalar, form, \
+                        create_interpolation_data
 from dolfinx.fem.petsc import LinearProblem
 from dolfinx.io import VTXWriter
 from dolfinx.mesh import create_submesh
@@ -9,7 +10,7 @@ from ufl import dx, grad, inner, Measure
 from mpi4py import MPI
 from petsc4py import PETSc
 import time
-from autogen_PML import PML_Functions
+from autogen_LC_PML import PML_Functions
 
 
 # The code will be executed in frequency-multiprocessing mode:
@@ -95,6 +96,11 @@ msh_INT, entity_map, vertex_map, geom_map = create_submesh(msh, msh.topology.dim
 V_INT = functionspace(msh_INT, ("CG", deg))
 uh_NOPML = Function(V_INT)
 
+fine_mesh_cell_map = msh_INT.topology.index_map(msh_INT.topology.dim)
+num_cells_on_proc = fine_mesh_cell_map.size_local + fine_mesh_cell_map.num_ghosts
+interp_cells = np.arange(num_cells_on_proc, dtype=np.int32)
+interpolation_data = create_interpolation_data(V_INT, V, interp_cells, padding=1e-14)
+
 # spectrum initialization
 p_mic = np.zeros((len(f_axis),1),dtype=complex)
 
@@ -112,7 +118,8 @@ def frequency_loop(nf):
     k0.value    = 2*np.pi*f_axis[nf]/c0
     problem.solve()
 
-    uh_NOPML.interpolate(uh)
+    uh_NOPML.interpolate_nonmatching(uh, interp_cells, interpolation_data=interpolation_data)
+
 
     # Export field for multiple of 100 Hz frequencies
     if freq%100 == 0:
